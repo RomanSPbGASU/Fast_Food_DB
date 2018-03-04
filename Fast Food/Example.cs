@@ -10,9 +10,8 @@ namespace Fast_Food
 	{
 		string connStr = @"Integrated Security=SSPI;Persist Security Info=False;Initial Catalog=Fast_Food2;Data Source=РОМАН-ПК\MSSQLSERVER01";
 		DataSet ds = new DataSet();
-		private BindingSource menuBS = new BindingSource();
-		private BindingSource consistBS = new BindingSource();
-		SqlDataAdapter menuAdapter, consistAdapter, groupsAdapter;
+		private BindingSource menuBS = new BindingSource(), consistBS = new BindingSource();
+		SqlDataAdapter menuAdapter, consistAdapter, groupsAdapter, ingredAdapter;
 
 		public Example()
 		{
@@ -47,24 +46,69 @@ namespace Fast_Food
 			//delParam.SourceVersion = DataRowVersion.Original;
 			menuAdapter.Fill(ds, "Menu");
 
+
+
+
+
 			consistAdapter = new SqlDataAdapter("SELECT DC.Dish_id, DC.Ingredient_name, DC.Amount, I.Cost_price, I.Unit FROM Dish_Composition AS DC JOIN Ingredients AS I ON I.Ingredient_name = DC.Ingredient_name", connStr)
 			{
-				InsertCommand = new SqlCommand("INSERT INTO Dish_Composition(")
+				InsertCommand = new SqlCommand("INSERT INTO Dish_Composition(Dish_id, Ingredient_name, Amount VALUES(@id, @name, @amount) INSERT INTO Ingredients(Ingredient_name, Cost_price, Unit) VALUES (@name, @cost, @unit"),
+				UpdateCommand = new SqlCommand(""),
+				DeleteCommand = new SqlCommand("")
 			};
-
+			
+			//consistAdapter.InsertCommand.Parameters.Add(new SqlParameter("@id"))
 			consistAdapter.Fill(ds, "Consist");
+
+
+
+
 
 			groupsAdapter = new SqlDataAdapter("SELECT * FROM Dish_Groups", connStr);
 			groupsAdapter.Fill(ds, "Groups");
 			SqlCommandBuilder groupsCB = new SqlCommandBuilder(groupsAdapter);
+
+
+
+
+
+			ingredAdapter = new SqlDataAdapter("SELECT Ingredient_name FROM Ingredients", connStr);
+			ingredAdapter.Fill(ds, "Ingred");
+			SqlCommandBuilder ingredCB = new SqlCommandBuilder(ingredAdapter);
+
+
+
+
 			ds.Relations.Add(new DataRelation("Menu-Consist", ds.Tables["Menu"].Columns["Dish_id"], ds.Tables["Consist"].Columns["Dish_id"]));
+
+
+
+
+
 			// Связываем DataSet и DataGridView
 			menuBS.DataSource = ds;
 			menuBS.DataMember = "Menu";
 			consistBS.DataSource = menuBS;
 			consistBS.DataMember = "Menu-Consist";
+			dgvConsist.Columns.Add(new DataGridViewComboBoxColumn()
+			{
+				HeaderText = "Ингредиент",
+				ValueMember = "Ingredient_name",
+				DataPropertyName = "Ingredient_name",
+				DataSource = ds.Tables["Ingred"],
+				FlatStyle = FlatStyle.Flat,
+				AutoComplete = true
+			});
 			dgvConsist.DataSource = consistBS;
+
+
+
 			ds.Tables["Groups"].PrimaryKey = new DataColumn[] { ds.Tables["Groups"].Columns["Group_name"] };    // создаём первичный ключ для метода Find()
+
+
+			ds.Tables["Ingred"].PrimaryKey = new DataColumn[] { ds.Tables["Ingred"].Columns["Ingredient_name"] };
+
+
 
 			// Создаём столбец ComboBox-ов (Groups) для dgvMenu 
 			dgvMenu.Columns.Add(new DataGridViewComboBoxColumn()
@@ -79,11 +123,17 @@ namespace Fast_Food
 			});
 			dgvMenu.DataSource = menuBS;
 		}
+
+
+
+
+
 		private void btnSave_Click(object sender, EventArgs e)
 		{
 			//consistAdapter.Update(ds.Tables["Consist"]);
 			groupsAdapter.Update(ds.Tables["Groups"]);
 			menuAdapter.Update(ds.Tables["Menu"]);
+			ingredAdapter.Update(ds.Tables["Ingred"]);
 			ds.AcceptChanges();
 		}
 		private void btnCancel_Click(object sender, EventArgs e)
@@ -91,6 +141,29 @@ namespace Fast_Food
 			ds.RejectChanges();
 		}
 		#region Ввод значений в dgvComboBoxColumn
+		private void dgvConsist_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e)
+		{
+			var cbo = e.Control as ComboBox;
+			if (cbo == null)
+				return;
+			cbo.DropDownStyle = ComboBoxStyle.DropDown;
+		}
+		private void dgvConsist_CellLeave(object sender, DataGridViewCellEventArgs e)
+		{
+			if (dgvConsist.Columns[e.ColumnIndex].GetType() == typeof(DataGridViewComboBoxColumn))
+			{
+				if (dgvConsist[e.ColumnIndex, e.RowIndex].IsInEditMode)
+				{
+					object efv = dgvConsist[e.ColumnIndex, e.RowIndex].EditedFormattedValue;
+					if (ds.Tables["Ingred"].Rows.Find(efv) == null ? true : false)
+					{
+						ds.Tables["Ingred"].Rows.Add(efv);
+						dgvConsist[e.ColumnIndex, e.RowIndex].Value = efv;
+						return;
+					}
+				}
+			}
+		}
 		private void dgvMenu_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e)
 		{
 			var cbo = e.Control as ComboBox;
@@ -98,29 +171,19 @@ namespace Fast_Food
 				return;
 			cbo.DropDownStyle = ComboBoxStyle.DropDown;
 		}
-		object editingvalue;
-		private void dgvMenu_CellValidating(object sender, DataGridViewCellValidatingEventArgs e)
+
+		private void dgvMenu_CellLeave(object sender, DataGridViewCellEventArgs e)
 		{
-			var cell = dgvMenu.CurrentCell as DataGridViewComboBoxCell;
-			if (cell == null)
-				return;
-			var efv = cell.EditedFormattedValue;
-			if (cell != null)
+			if (dgvMenu.Columns[e.ColumnIndex].GetType() == typeof(DataGridViewComboBoxColumn))
 			{
-				if (ds.Tables["Groups"].Rows.IndexOf(ds.Tables["Groups"].Rows.Find(efv)) == -1)
+				if (dgvMenu[e.ColumnIndex, e.RowIndex].IsInEditMode)
 				{
-					editingvalue = ds.Tables["Groups"].Rows.Add(new object[] { efv }).ItemArray[0];
-				}
-			}
-		}
-		private void dgvMenu_CellEndEdit(object sender, DataGridViewCellEventArgs e)
-		{
-			if (dgvMenu.CurrentCell.GetType() == typeof(DataGridViewComboBoxCell))
-			{
-				if (editingvalue != null)
-				{
-					dgvMenu.CurrentCell.Value = editingvalue;
-					editingvalue = null;
+					object efv = dgvMenu[e.ColumnIndex, e.RowIndex].EditedFormattedValue;
+					if (ds.Tables["Groups"].Rows.Find(efv) == null ? true : false)
+					{
+						ds.Tables["Groups"].Rows.Add(efv);
+						dgvMenu[e.ColumnIndex, e.RowIndex].Value = efv;
+					}
 				}
 			}
 		}
