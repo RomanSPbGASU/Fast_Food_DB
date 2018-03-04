@@ -9,38 +9,63 @@ namespace Fast_Food
 	public partial class Example : Form
 	{
 		string connStr = @"Integrated Security=SSPI;Persist Security Info=False;Initial Catalog=Fast_Food2;Data Source=РОМАН-ПК\MSSQLSERVER01";
-		DataSet ds = new DataSet();
+		DataSet ds = new DataSet(), unchanged_ds = new DataSet();
 		private BindingSource menuBS = new BindingSource();
 		private BindingSource consistBS = new BindingSource();
-		//DataSet initds;
-		//SqlDataAdapter adapter;
-		//SqlCommandBuilder builder;
+		SqlDataAdapter menuAdapter, consistAdapter, groupsAdapter;
 
 		public Example()
 		{
 			InitializeComponent();
 			dgvMenu.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+
 			// Заполняем DataSet
-			using (SqlDataAdapter menuAdapter = new SqlDataAdapter("SELECT Dish_id, Dish_name, Group_name AS 'Group', Price, Description, Image FROM Menu", connStr)
+
+			menuAdapter = new SqlDataAdapter("SELECT Dish_id, Dish_name, Group_name AS 'Group', Price, Description, Image FROM Menu", connStr)
 			{
-				InsertCommand = new SqlCommand(),
-				UpdateCommand = new SqlCommand(),
-			})
-				menuAdapter.Fill(ds, "Menu");
-			using (SqlDataAdapter consistAdapter = new SqlDataAdapter("SELECT * FROM Dish_Composition, Ingredients WHERE Ingredients.Ingredient_name = Dish_Composition.Ingredient_name", connStr))
-				consistAdapter.Fill(ds, "Consist");
-			using (SqlDataAdapter groupsAdapter = new SqlDataAdapter("SELECT * FROM Dish_Groups", connStr))
-				groupsAdapter.Fill(ds, "Groups");
-			//using (SqlDataAdapter ingredientsAdapter = new SqlDataAdapter("SELECT * FROM Ingredients", connStr))
-			//	ingredientsAdapter.Fill(ds, "Ingredients");
+				InsertCommand = new SqlCommand("INSERT INTO Menu(Dish_name, Group_name, Price, Description, Image) VALUES(@name, @group, @price, @description, @image) SET @id = SCOPE_IDENTITY()"),
+				//UpdateCommand = new SqlCommand("Update Menu SET Dish_id = @id, Dish_name = @name, Group_name = @group, Price = @price, Description = @description, Image = @image WHERE Dish_id = @id"),
+				//DeleteCommand = new SqlCommand("DELETE FROM Menu WHERE Dish_id = @id")
+			};
+			SqlCommandBuilder menuCommandBuilder = new SqlCommandBuilder(menuAdapter);
+			menuAdapter.InsertCommand.Parameters.Add(new SqlParameter("@name", SqlDbType.NVarChar, 100, "Dish_name"));
+			menuAdapter.InsertCommand.Parameters.Add(new SqlParameter("@group", SqlDbType.NVarChar, 50, "Group_name"));
+			menuAdapter.InsertCommand.Parameters.Add(new SqlParameter("@price", SqlDbType.SmallMoney, 0, "Price"));
+			menuAdapter.InsertCommand.Parameters.Add(new SqlParameter("@description", SqlDbType.Text, 0, "Description"));
+			menuAdapter.InsertCommand.Parameters.Add(new SqlParameter("@image", SqlDbType.VarBinary, 0, "Image"));
+			SqlParameter insParam = menuAdapter.InsertCommand.Parameters.Add(new SqlParameter("@id", SqlDbType.Int, 0, "Dish_id"));
+			insParam.Direction = ParameterDirection.Output;
+
+			//menuAdapter.UpdateCommand.Parameters.Add(new SqlParameter("@name", SqlDbType.NVarChar, 100, "Dish_name"));
+			//menuAdapter.UpdateCommand.Parameters.Add(new SqlParameter("@group", SqlDbType.NVarChar, 50, "Group_name"));
+			//menuAdapter.UpdateCommand.Parameters.Add(new SqlParameter("@price", SqlDbType.SmallMoney, 0, "Price"));
+			//menuAdapter.UpdateCommand.Parameters.Add(new SqlParameter("@description", SqlDbType.Text, 0, "Description"));
+			//menuAdapter.UpdateCommand.Parameters.Add(new SqlParameter("@image", SqlDbType.VarBinary, 0, "Image"));
+			//SqlParameter updParam = menuAdapter.UpdateCommand.Parameters.Add(new SqlParameter("@id", SqlDbType.Int, 0, "Dish_id"));
+			//updParam.SourceVersion = DataRowVersion.Original;
+
+			//SqlParameter delParam = menuAdapter.DeleteCommand.Parameters.Add(new SqlParameter("@id", SqlDbType.Int, 0, "Dish_id"));
+			//delParam.SourceVersion = DataRowVersion.Original;
+
+			menuAdapter.Fill(ds, "Menu");
+
+			consistAdapter = new SqlDataAdapter("SELECT DC.Dish_id, DC.Ingredient_name, DC.Amount, I.Cost_price, I.Unit FROM Dish_Composition AS DC JOIN Ingredients AS I ON I.Ingredient_name = DC.Ingredient_name", connStr);
+
+			consistAdapter.Fill(ds, "Consist");
+
+			groupsAdapter = new SqlDataAdapter("SELECT * FROM Dish_Groups", connStr);
+			groupsAdapter.Fill(ds, "Groups");
+			SqlCommandBuilder groupsCB = new SqlCommandBuilder(groupsAdapter);
 			ds.Relations.Add(new DataRelation("Menu-Consist", ds.Tables["Menu"].Columns["Dish_id"], ds.Tables["Consist"].Columns["Dish_id"]));
-			// Привязываем DataSet к DataGridView
+			// Связываем DataSet и DataGridView
 			menuBS.DataSource = ds;
 			menuBS.DataMember = "Menu";
 			consistBS.DataSource = menuBS;
 			consistBS.DataMember = "Menu-Consist";
 			dgvConsist.DataSource = consistBS;
 			ds.Tables["Groups"].PrimaryKey = new DataColumn[] { ds.Tables["Groups"].Columns["Group_name"] };    // создаём первичный ключ для метода Find()
+			unchanged_ds = ds.Copy();	// копия ds для отката изменений
+
 			// Создаём столбец ComboBox-ов (Groups) для dgvMenu 
 			dgvMenu.Columns.Add(new DataGridViewComboBoxColumn()
 			{
@@ -54,11 +79,19 @@ namespace Fast_Food
 			});
 			dgvMenu.DataSource = menuBS;
 		}
-		#region Ввод значений в dgvComboBoxColumn
-		private void button3_Click(object sender, EventArgs e)
+		private void btnSave_Click(object sender, EventArgs e)
 		{
-
+			//consistAdapter.Update(ds.Tables["Consist"]);
+			groupsAdapter.Update(ds.Tables["Groups"]);
+			menuAdapter.Update(ds.Tables["Menu"]);
+			ds.AcceptChanges();
 		}
+		private void btnCancel_Click(object sender, EventArgs e)
+		{
+			ds.RejectChanges();
+			//dgvMenu.DataSource = ds.Tables["Menu"];
+		}
+		#region Ввод значений в dgvComboBoxColumn
 		private void dgvMenu_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e)
 		{
 			var cbo = e.Control as ComboBox;
@@ -76,7 +109,7 @@ namespace Fast_Food
 			if (cell != null)
 			{
 				if (ds.Tables["Groups"].Rows.IndexOf(ds.Tables["Groups"].Rows.Find(efv)) == -1)
-				{	
+				{
 					editingvalue = ds.Tables["Groups"].Rows.Add(new object[] { efv }).ItemArray[0];
 				}
 			}
@@ -93,180 +126,5 @@ namespace Fast_Food
 			}
 		}
 		#endregion
-
-		//private void dgvMenu_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e)
-		//{
-		//	if (e.Control.GetType() == typeof(DataGridViewComboBoxEditingControl))
-		//	{
-		//		var combo = e.Control as ComboBox;
-		//		if (combo != null)
-		//			combo.DropDownStyle = ComboBoxStyle.DropDown;
-		//	}
-		//}
-
-		//private void dgvMenu_CellValidating(object sender, DataGridViewCellValidatingEventArgs e)
-		//{
-		//	var cell = dgvMenu.CurrentCell as DataGridViewComboBoxCell;
-		//	if (cell != null && !cell.Items.Contains(e.FormattedValue))
-		//	{
-		//		Console.WriteLine(e.FormattedValue);
-		//		Console.WriteLine(dgvMenu.CurrentCell.EditedFormattedValue);
-		//	}
-		//}
-
-		//private void dgvMenu_CellEndEdit(object sender, DataGridViewCellEventArgs e)
-		//{
-		//	if (dgvMenu.CurrentCell.GetType() == typeof(DataGridViewComboBoxCell))
-		//	{
-		//		var comboColumn = dgvMenu.Columns[dgvMenu.CurrentCell.ColumnIndex] as DataGridViewComboBoxColumn;
-
-		//		if (comboColumn != null && e.F != "" && !comboColumn.Items.Contains(editingValue))
-		//		{
-		//			ds.Tables["Groups"].Rows.Add(new object[] { ds.Tables["Groups"].Rows.Count + 1, editingValue });
-		//			dgvMenu[dgvMenu.CurrentCell.RowIndex, dgvMenu.CurrentCell.ColumnIndex].Value = ds.Tables["Groups"].Rows.Count;
-		//		}
-		//	}
-		//}
-
-
-
-
-		//private void dgvMenu_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e)
-		//{
-		//	if (this.dgvMenu.CurrentCell.ColumnIndex == dgvMenu.Columns["Group"].Index)
-		//	{
-		//		ComboBox c = e.Control as ComboBox;
-		//		((ComboBox)c).DropDownStyle = ComboBoxStyle.DropDown;
-		//	}
-		//}
-		//private void dgvMenu_CellValidating(object sender, DataGridViewCellValidatingEventArgs e)
-		//{
-		//	if (e.ColumnIndex == this.dgvMenu.Columns["Group"].Index)
-		//	{
-		//		DataGridViewComboBoxColumn cmbColumn = (DataGridViewComboBoxColumn)this.dgvMenu.Columns["Group"];
-		//		object eFV = e.FormattedValue;
-		//		if (!cmbColumn.Items.Contains(eFV))
-		//		{
-		//			cmbColumn.Items.Add(eFV);
-		//			this.dgvMenu.CurrentCell.Value = e.FormattedValue;
-		//		}
-		//	}
-		//}
-
-
-
-
-
-
-
-
-		//public Example()
-		//{
-		//	InitializeComponent();
-		//	dgvMenu.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-		//	//using (SqlDataAdapter adapter = new SqlDataAdapter(SelectJurnal, connStr))
-		//	//{
-		//	//	adapter.Fill(ds, "Jurnal");
-		//	//	dataGridView1.DataSource = ds.Tables["Jurnal"];
-		//	//}
-		//	dgvMenu.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-		//	using (SqlDataAdapter adapter = new SqlDataAdapter("SELECT Ingredient_name, Cost_Price, Unit FROM Ingredients", connStr))
-		//	{
-		//		adapter.Fill(ds, "Ingredients");
-		//		dgvMenu.DataSource = ds.Tables["Ingredients"];
-		//		//dataGridView2.Columns["Id"].Visible = false;
-		//		dgvMenu.Columns["Cost_Price"].DefaultCellStyle.Format = "n2";
-		//	}
-
-
-
-
-		//	dgvConsist.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-		//	using (SqlDataAdapter adapter = new SqlDataAdapter("SELECT Menu.Dish_name, Menu.Price, Dish_groups.Group_name FROM Menu JOIN Dish_groups ON Menu.Group_id = Dish_groups.Group_id", connStr))
-		//	{
-		//		adapter.Fill(ds, "Menu");
-		//		dgvConsist.DataSource = ds.Tables["Menu"];
-		//		dgvConsist.Columns["Price"].DefaultCellStyle.Format = "n2";
-		//	}
-		//	initds = ds.Copy();
-		//}
-		//private void button3_Click(object sender, EventArgs e)  // сохранить изменения в Ingredients
-		//{
-		//	using (SqlConnection conn = new SqlConnection(connStr))
-		//	{
-		//		adapter = new SqlDataAdapter();
-		//		builder = new SqlCommandBuilder(adapter);
-		//		adapter.SelectCommand = new SqlCommand("SELECT Ingredient_name, Cost_Price, Unit FROM Ingredients", conn);
-		//		// закоменченный код не нужен, так как есть SqlCommandBuilder
-		//		//adapter.InsertCommand = new SqlCommand("INSERT INTO Ingredients(Ingredient_name, Cost_Price, Unit) VALUES (@name, @cost, @unit)", conn);
-		//		//adapter.InsertCommand.Parameters.Add("@name", SqlDbType.NVarChar, 150, "Ingredient_name");
-		//		//adapter.InsertCommand.Parameters.Add("@cost", SqlDbType.SmallMoney, 0, "Cost_Price");
-		//		//adapter.InsertCommand.Parameters.Add("@unit", SqlDbType.NVarChar, 10, "Unit");
-		//		adapter.Update(ds, "Ingredients");
-		//		initds = ds.Copy();
-		//		adapter.Dispose();
-		//		builder.Dispose();
-		//	}
-		//}
-
-		//private void button2_Click(object sender, EventArgs e)  // отменить изменения в Ingredients
-		//{
-		//	int currenttopindex = dgvMenu.FirstDisplayedCell.RowIndex;
-		//	int startrowscount = dgvMenu.Rows.Count;
-		//	int selectedrow = dgvMenu.CurrentRow.Index;
-		//	ds = initds.Copy();
-		//	dgvMenu.DataSource = ds.Tables["Ingredients"];
-		//	if (currenttopindex < dgvMenu.RowCount)
-		//	{
-		//		dgvMenu.FirstDisplayedScrollingRowIndex = currenttopindex;
-		//		dgvMenu.ClearSelection();
-		//		dgvMenu.Rows[selectedrow].Selected = true;
-		//	}
-		//	else
-		//	{
-		//		dgvMenu.FirstDisplayedScrollingRowIndex = currenttopindex + dgvMenu.Rows.Count - startrowscount;
-		//		dgvMenu.ClearSelection();
-		//		dgvMenu.Rows[dgvMenu.Rows.Count - 1].Selected = true;
-		//	}
-		//}
-
-		//private void button5_Click(object sender, EventArgs e)  // сохранить изменения в Menu
-		//{
-		//	using (SqlConnection conn = new SqlConnection(connStr))
-		//	{
-		//		adapter = new SqlDataAdapter();
-		//		builder = new SqlCommandBuilder(adapter);
-		//		adapter.SelectCommand = new SqlCommand("SELECT Menu.Dish_name, Menu.Price, Dish_groups.Group_name FROM Menu JOIN Dish_groups ON Menu.Group_id = Dish_groups.Group_id", conn);
-		//		adapter.InsertCommand = new SqlCommand("INSERT INTO Menu(Dish_name, Price) VALUES (@dish, @price) INSERT INTO Dish_groups(Group_name) VALUES (@group)", conn);
-		//		adapter.InsertCommand.Parameters.Add("@dish", SqlDbType.NVarChar, 150, "Dish_name");
-		//		adapter.InsertCommand.Parameters.Add("@price", SqlDbType.SmallMoney, 0, "Price");
-		//		adapter.InsertCommand.Parameters.Add("@group", SqlDbType.NVarChar, 50, "Group_name");
-		//		adapter.Update(ds, "Menu");
-		//		initds = ds.Copy();
-		//		adapter.Dispose();
-		//		builder.Dispose();
-		//	}
-		//}
-
-		//private void button4_Click(object sender, EventArgs e)  // отменить изменения в Menu
-		//{
-		//	int currenttopindex = dgvConsist.FirstDisplayedCell.RowIndex;
-		//	int startrowscount = dgvConsist.Rows.Count;
-		//	int selectedrow = dgvConsist.CurrentRow.Index;
-		//	ds = initds.Copy();
-		//	dgvConsist.DataSource = ds.Tables["Menu"];
-		//	if (currenttopindex < dgvMenu.RowCount)
-		//	{
-		//		dgvConsist.FirstDisplayedScrollingRowIndex = currenttopindex;
-		//		dgvConsist.ClearSelection();
-		//		dgvConsist.Rows[selectedrow].Selected = true;
-		//	}
-		//	else
-		//	{
-		//		dgvConsist.FirstDisplayedScrollingRowIndex = currenttopindex + dgvMenu.Rows.Count - startrowscount;
-		//		dgvConsist.ClearSelection();
-		//		dgvConsist.Rows[dgvMenu.Rows.Count - 1].Selected = true;
-		//	}
-		//}
 	}
 }

@@ -62,7 +62,7 @@ namespace Fast_Food
 				List<SqlCommand> CreateTablesCommand = new List<SqlCommand>();
 				CreateTablesCommand.Add(new SqlCommand("CREATE TABLE Ingredients(Ingredient_name nvarchar(100) PRIMARY KEY, Cost_price smallmoney, Unit nvarchar(10))"));
 				CreateTablesCommand.Add(new SqlCommand("CREATE TABLE Dish_Composition(Dish_id int REFERENCES Menu(Dish_id), Ingredient_name nvarchar(100) REFERENCES Ingredients(Ingredient_name), Amount int)"));
-				CreateTablesCommand.Add(new SqlCommand("CREATE TABLE Menu(Dish_id int PRIMARY KEY IDENTITY, Dish_name nvarchar(100), Group_name NVARCHAR(50) REFERENCES Dish_groups(Group_name), Price smallmoney, Image varbinary(MAX))"));
+				CreateTablesCommand.Add(new SqlCommand("CREATE TABLE Menu(Dish_id int PRIMARY KEY IDENTITY, Dish_name nvarchar(100), Group_name NVARCHAR(50) REFERENCES Dish_groups(Group_name), Price smallmoney, Description text, Image varbinary(MAX))"));
 				CreateTablesCommand.Add(new SqlCommand("CREATE TABLE Dish_groups(Group_name nvarchar(50) PRIMARY KEY)"));
 				CreateTablesCommand.Add(new SqlCommand("CREATE TABLE Orders(Order_id int PRIMARY KEY IDENTITY, Receipt_time datetime, Cashier_id int REFERENCES Employees(Employee_id), Delivery_time datetime, Waiter_id int REFERENCES Employees(Employee_id))"));
 				CreateTablesCommand.Add(new SqlCommand("CREATE TABLE Dish(Order_id int REFERENCES Orders(Order_id), Dish_id int REFERENCES Menu(Dish_id), Cook_id int REFERENCES Employees(Employee_id), Taking_time datetime, Cooking_time datetime)"));
