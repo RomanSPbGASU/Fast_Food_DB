@@ -9,7 +9,7 @@ namespace Fast_Food
 	public partial class Example : Form
 	{
 		string connStr = @"Integrated Security=SSPI;Persist Security Info=False;Initial Catalog=Fast_Food2;Data Source=РОМАН-ПК\MSSQLSERVER01";
-		DataSet ds = new DataSet(), unchanged_ds = new DataSet();
+		DataSet ds = new DataSet();
 		private BindingSource menuBS = new BindingSource();
 		private BindingSource consistBS = new BindingSource();
 		SqlDataAdapter menuAdapter, consistAdapter, groupsAdapter;
@@ -29,13 +29,12 @@ namespace Fast_Food
 			};
 			SqlCommandBuilder menuCommandBuilder = new SqlCommandBuilder(menuAdapter);
 			menuAdapter.InsertCommand.Parameters.Add(new SqlParameter("@name", SqlDbType.NVarChar, 100, "Dish_name"));
-			menuAdapter.InsertCommand.Parameters.Add(new SqlParameter("@group", SqlDbType.NVarChar, 50, "Group_name"));
+			menuAdapter.InsertCommand.Parameters.Add(new SqlParameter("@group", SqlDbType.NVarChar, 50, "Group"));
 			menuAdapter.InsertCommand.Parameters.Add(new SqlParameter("@price", SqlDbType.SmallMoney, 0, "Price"));
 			menuAdapter.InsertCommand.Parameters.Add(new SqlParameter("@description", SqlDbType.Text, 0, "Description"));
 			menuAdapter.InsertCommand.Parameters.Add(new SqlParameter("@image", SqlDbType.VarBinary, 0, "Image"));
 			SqlParameter insParam = menuAdapter.InsertCommand.Parameters.Add(new SqlParameter("@id", SqlDbType.Int, 0, "Dish_id"));
 			insParam.Direction = ParameterDirection.Output;
-
 			//menuAdapter.UpdateCommand.Parameters.Add(new SqlParameter("@name", SqlDbType.NVarChar, 100, "Dish_name"));
 			//menuAdapter.UpdateCommand.Parameters.Add(new SqlParameter("@group", SqlDbType.NVarChar, 50, "Group_name"));
 			//menuAdapter.UpdateCommand.Parameters.Add(new SqlParameter("@price", SqlDbType.SmallMoney, 0, "Price"));
@@ -46,10 +45,12 @@ namespace Fast_Food
 
 			//SqlParameter delParam = menuAdapter.DeleteCommand.Parameters.Add(new SqlParameter("@id", SqlDbType.Int, 0, "Dish_id"));
 			//delParam.SourceVersion = DataRowVersion.Original;
-
 			menuAdapter.Fill(ds, "Menu");
 
-			consistAdapter = new SqlDataAdapter("SELECT DC.Dish_id, DC.Ingredient_name, DC.Amount, I.Cost_price, I.Unit FROM Dish_Composition AS DC JOIN Ingredients AS I ON I.Ingredient_name = DC.Ingredient_name", connStr);
+			consistAdapter = new SqlDataAdapter("SELECT DC.Dish_id, DC.Ingredient_name, DC.Amount, I.Cost_price, I.Unit FROM Dish_Composition AS DC JOIN Ingredients AS I ON I.Ingredient_name = DC.Ingredient_name", connStr)
+			{
+				InsertCommand = new SqlCommand("INSERT INTO Dish_Composition(")
+			};
 
 			consistAdapter.Fill(ds, "Consist");
 
@@ -64,7 +65,6 @@ namespace Fast_Food
 			consistBS.DataMember = "Menu-Consist";
 			dgvConsist.DataSource = consistBS;
 			ds.Tables["Groups"].PrimaryKey = new DataColumn[] { ds.Tables["Groups"].Columns["Group_name"] };    // создаём первичный ключ для метода Find()
-			unchanged_ds = ds.Copy();	// копия ds для отката изменений
 
 			// Создаём столбец ComboBox-ов (Groups) для dgvMenu 
 			dgvMenu.Columns.Add(new DataGridViewComboBoxColumn()
@@ -89,7 +89,6 @@ namespace Fast_Food
 		private void btnCancel_Click(object sender, EventArgs e)
 		{
 			ds.RejectChanges();
-			//dgvMenu.DataSource = ds.Tables["Menu"];
 		}
 		#region Ввод значений в dgvComboBoxColumn
 		private void dgvMenu_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e)
