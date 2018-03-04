@@ -27,12 +27,12 @@ namespace Fast_Food
 				UpdateCommand = new SqlCommand(),
 			})
 				menuAdapter.Fill(ds, "Menu");
-			using (SqlDataAdapter consistAdapter = new SqlDataAdapter("SELECT * FROM Dish_Composition", connStr))
+			using (SqlDataAdapter consistAdapter = new SqlDataAdapter("SELECT * FROM Dish_Composition, Ingredients WHERE Ingredients.Ingredient_name = Dish_Composition.Ingredient_name", connStr))
 				consistAdapter.Fill(ds, "Consist");
 			using (SqlDataAdapter groupsAdapter = new SqlDataAdapter("SELECT * FROM Dish_Groups", connStr))
 				groupsAdapter.Fill(ds, "Groups");
-			using (SqlDataAdapter ingredientsAdapter = new SqlDataAdapter("SELECT * FROM Ingredients", connStr))
-				ingredientsAdapter.Fill(ds, "Ingredients");
+			//using (SqlDataAdapter ingredientsAdapter = new SqlDataAdapter("SELECT * FROM Ingredients", connStr))
+			//	ingredientsAdapter.Fill(ds, "Ingredients");
 			ds.Relations.Add(new DataRelation("Menu-Consist", ds.Tables["Menu"].Columns["Dish_id"], ds.Tables["Consist"].Columns["Dish_id"]));
 			// Привязываем DataSet к DataGridView
 			menuBS.DataSource = ds;
@@ -41,7 +41,7 @@ namespace Fast_Food
 			consistBS.DataMember = "Menu-Consist";
 			dgvConsist.DataSource = consistBS;
 			ds.Tables["Groups"].PrimaryKey = new DataColumn[] { ds.Tables["Groups"].Columns["Group_name"] };    // создаём первичный ключ для метода Find()
-																												// Создаём столбец ComboBox-ов (Groups) для dgvMenu 
+			// Создаём столбец ComboBox-ов (Groups) для dgvMenu 
 			dgvMenu.Columns.Add(new DataGridViewComboBoxColumn()
 			{
 				HeaderText = "Группа",
@@ -54,6 +54,7 @@ namespace Fast_Food
 			});
 			dgvMenu.DataSource = menuBS;
 		}
+		#region Ввод значений в dgvComboBoxColumn
 		private void button3_Click(object sender, EventArgs e)
 		{
 
@@ -75,7 +76,7 @@ namespace Fast_Food
 			if (cell != null)
 			{
 				if (ds.Tables["Groups"].Rows.IndexOf(ds.Tables["Groups"].Rows.Find(efv)) == -1)
-				{
+				{	
 					editingvalue = ds.Tables["Groups"].Rows.Add(new object[] { efv }).ItemArray[0];
 				}
 			}
@@ -91,7 +92,7 @@ namespace Fast_Food
 				}
 			}
 		}
-
+		#endregion
 
 		//private void dgvMenu_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e)
 		//{
