@@ -2,6 +2,7 @@
 using System.Windows.Forms;
 using System.Data;
 using System.Data.SqlClient;
+using System.ComponentModel;
 
 namespace Fast_Food
 {
@@ -20,7 +21,7 @@ namespace Fast_Food
 			InitializeComponent();
 			dgvMenu.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
 			// Заполняем DataSet
-			using (SqlDataAdapter menuAdapter = new SqlDataAdapter("SELECT Dish_id, Dish_name, Group_id AS 'Group', Price, Description, Image FROM Menu", connStr)
+			using (SqlDataAdapter menuAdapter = new SqlDataAdapter("SELECT Dish_id, Dish_name, Group_name AS 'Group', Price, Description, Image FROM Menu", connStr)
 			{
 				InsertCommand = new SqlCommand(),
 				UpdateCommand = new SqlCommand(),
@@ -39,31 +40,43 @@ namespace Fast_Food
 			consistBS.DataSource = menuBS;
 			consistBS.DataMember = "Menu-Consist";
 			dgvConsist.DataSource = consistBS;
-			// Создаём столбец ComboBox-ов (Groups) для dgvMenu 
-			dgvMenu.Columns.Add(new DataGridViewComboBoxColumn() {
+			ds.Tables["Groups"].PrimaryKey = new DataColumn[] { ds.Tables["Groups"].Columns["Group_name"] };    // создаём первичный ключ для метода Find()
+																												// Создаём столбец ComboBox-ов (Groups) для dgvMenu 
+			dgvMenu.Columns.Add(new DataGridViewComboBoxColumn()
+			{
 				HeaderText = "Группа",
-				DisplayMember = "Group_name",
-				ValueMember = "Group_id",
+				//DisplayMember = "Group_name",	// совпадает с ValueMember
+				ValueMember = "Group_name",
 				DataPropertyName = "Group",
 				DataSource = ds.Tables["Groups"],
 				FlatStyle = FlatStyle.Flat,
-				AutoComplete = true});
+				AutoComplete = true
+			});
 			dgvMenu.DataSource = menuBS;
 		}
+		private void button3_Click(object sender, EventArgs e)
+		{
 
-		string editingValue;
+		}
 		private void dgvMenu_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e)
 		{
-			if (e.Control.GetType() == typeof(DataGridViewComboBoxEditingControl))
+			var cbo = e.Control as ComboBox;
+			if (cbo == null)
+				return;
+			cbo.DropDownStyle = ComboBoxStyle.DropDown;
+		}
+		object editingvalue;
+		private void dgvMenu_CellValidating(object sender, DataGridViewCellValidatingEventArgs e)
+		{
+			var cell = dgvMenu.CurrentCell as DataGridViewComboBoxCell;
+			if (cell == null)
+				return;
+			var efv = cell.EditedFormattedValue;
+			if (cell != null)
 			{
-				var combo = e.Control as ComboBox;
-				if (combo != null)
+				if (ds.Tables["Groups"].Rows.IndexOf(ds.Tables["Groups"].Rows.Find(efv)) == -1)
 				{
-					combo.DropDownStyle = ComboBoxStyle.DropDown;
-					combo.TextChanged += (s, ev) =>
-					{
-						editingValue = combo.Text;
-					};
+					editingvalue = ds.Tables["Groups"].Rows.Add(new object[] { efv }).ItemArray[0];
 				}
 			}
 		}
@@ -71,27 +84,48 @@ namespace Fast_Food
 		{
 			if (dgvMenu.CurrentCell.GetType() == typeof(DataGridViewComboBoxCell))
 			{
-				var comboColumn = dgvMenu.Columns[dgvMenu.CurrentCell.ColumnIndex] as DataGridViewComboBoxColumn;
-				//comboColumn.Items.Insert(2, editingValue);
-				var type = ds.Tables["Groups"].Columns["Group_name"].GetType();
-				var ty = comboColumn.Items[1].GetType();
-
-				//bool exists;
-				//foreach(var item in comboColumn.Items)
-				//	if(item.)
-				if (comboColumn != null && editingValue != "" && !(comboColumn.Items.Contains(editingValue)))
+				if (editingvalue != null)
 				{
-					ds.Tables["Groups"].Rows.Add(new object[] { ds.Tables["Groups"].Rows.Count + 1, editingValue });
-					dgvMenu[dgvMenu.CurrentCell.RowIndex, dgvMenu.CurrentCell.ColumnIndex].Value = ds.Tables["Groups"].Rows.Count;
+					dgvMenu.CurrentCell.Value = editingvalue;
+					editingvalue = null;
 				}
 			}
 		}
 
-		private void button3_Click(object sender, EventArgs e)
-		{
 
-		}
+		//private void dgvMenu_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e)
+		//{
+		//	if (e.Control.GetType() == typeof(DataGridViewComboBoxEditingControl))
+		//	{
+		//		var combo = e.Control as ComboBox;
+		//		if (combo != null)
+		//			combo.DropDownStyle = ComboBoxStyle.DropDown;
+		//	}
+		//}
 
+		//private void dgvMenu_CellValidating(object sender, DataGridViewCellValidatingEventArgs e)
+		//{
+		//	var cell = dgvMenu.CurrentCell as DataGridViewComboBoxCell;
+		//	if (cell != null && !cell.Items.Contains(e.FormattedValue))
+		//	{
+		//		Console.WriteLine(e.FormattedValue);
+		//		Console.WriteLine(dgvMenu.CurrentCell.EditedFormattedValue);
+		//	}
+		//}
+
+		//private void dgvMenu_CellEndEdit(object sender, DataGridViewCellEventArgs e)
+		//{
+		//	if (dgvMenu.CurrentCell.GetType() == typeof(DataGridViewComboBoxCell))
+		//	{
+		//		var comboColumn = dgvMenu.Columns[dgvMenu.CurrentCell.ColumnIndex] as DataGridViewComboBoxColumn;
+
+		//		if (comboColumn != null && e.F != "" && !comboColumn.Items.Contains(editingValue))
+		//		{
+		//			ds.Tables["Groups"].Rows.Add(new object[] { ds.Tables["Groups"].Rows.Count + 1, editingValue });
+		//			dgvMenu[dgvMenu.CurrentCell.RowIndex, dgvMenu.CurrentCell.ColumnIndex].Value = ds.Tables["Groups"].Rows.Count;
+		//		}
+		//	}
+		//}
 
 
 
